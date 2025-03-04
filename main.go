@@ -10,6 +10,7 @@ import (
 
 	"github.com/burgr033/autoCommit/internal/filetypes"
 	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 // custom FOOTER and HEADER command line flags
@@ -123,7 +124,6 @@ func getConventionalType(filename string) string {
 	return commitType
 }
 
-// test
 func getNamingOfBranch(branch string) string {
 	branchSplit := strings.Split(branch, "/")
 	if len(branchSplit) > 0 {
@@ -162,12 +162,11 @@ func determineGitStatus(repo *git.Repository) CommitBody {
 	if err != nil {
 		log.Fatalf("Failed to get status from worktree: %v", err)
 	}
-
-	head, err := repo.Head()
+	var head *plumbing.Reference
+	head, err = repo.Head()
 	if err != nil {
-		log.Fatalf("Failed to get HEAD: %v", err)
+		head, _ = repo.Reference(plumbing.HEAD, false)
 	}
-
 	branchName := head.Name().Short()
 	branchType := getNamingOfBranch(branchName)
 
