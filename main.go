@@ -12,6 +12,11 @@ import (
 	git "github.com/go-git/go-git/v5"
 )
 
+var (
+	HEADER = "# This is an automated commit message"
+	FOOTER = "# This is the Footer of the automated commit message"
+)
+
 type (
 	CommitBody    []Msg
 	GroupedCommit map[string][]string
@@ -31,7 +36,7 @@ var (
 
 func (b *CommitBody) toString() string {
 	var bodyString []string
-	bodyString = append(bodyString, "# This is an automated commit message")
+	bodyString = append(bodyString, HEADER)
 	bodyString = append(bodyString, "")
 
 	// Group similar messages together
@@ -41,7 +46,7 @@ func (b *CommitBody) toString() string {
 	}
 
 	bodyString = append(bodyString, "")
-	bodyString = append(bodyString, "# This is the Footer of the automated commit message")
+	bodyString = append(bodyString, FOOTER)
 	return strings.Join(bodyString, "\n")
 }
 
@@ -118,8 +123,11 @@ func getConventionalType(filename string) string {
 }
 
 func getNamingOfBranch(branch string) string {
-	if commitType, exists := filetypes.BranchMapping[branch]; exists {
-		return commitType
+	branchSplit := strings.Split(branch, "/")
+	if len(branchSplit) > 0 {
+		if commitType, exists := filetypes.BranchMapping[branchSplit[0]]; exists {
+			return commitType
+		}
 	}
 	return filetypes.ConventionalUnknown
 }
@@ -191,10 +199,16 @@ func determineGitStatus(repo *git.Repository) CommitBody {
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatal("Usage: go run main.go <commit-msg-file>")
+		log.Fatalf("Usage: %s <commit-msg-file> [--header;--footer]", os.Args[0])
 	}
 
 	commitMsgFile := os.Args[1]
+	if os.Args[2] != "" {
+		HEADER = os.Args[2]
+	}
+	if os.Args[3] != "" {
+		FOOTER = os.Args[3]
+	}
 
 	repo, err := git.PlainOpen(".")
 	if err != nil {
