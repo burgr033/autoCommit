@@ -15,7 +15,9 @@ create a `prepare-commit-msg` file in your git repository under `.git/hooks/` di
 ```
 #!/bin/sh
 COMMIT_MSG_FILE=$1
-autoCommit $COMMIT_MSG_FILE
+CUSTOM_HEADER="HERE IS MY CUSTOM HEADER"
+CUSTOM_FOOTER="HERE IS MY CUSTOM FOOTER"
+autoCommit $COMMIT_MSG_FILE $CUSTOM_HEADER $CUSTOM_FOOTER
 ```
 > [!NOTE]
 > this could also be done in a git template. See https://git-scm.com/docs/git-init#_template_directory
