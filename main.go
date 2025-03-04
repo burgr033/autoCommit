@@ -205,10 +205,12 @@ func main() {
 	}
 
 	commitMsgFile := os.Args[1]
-	if os.Args[2] != "" {
+
+	if len(os.Args) >= 3 && os.Args[2] != "" {
 		HEADER = os.Args[2]
 	}
-	if os.Args[3] != "" {
+
+	if len(os.Args) >= 4 && os.Args[3] != "" {
 		FOOTER = os.Args[3]
 	}
 
