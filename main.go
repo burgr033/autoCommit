@@ -6,94 +6,143 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/burgr033/autoCommit/internal/filetypes"
 	git "github.com/go-git/go-git/v5"
 )
 
-// TODO: Documentation
-// TODO: Grouping of output messages (feat: modified FileX, FileY and FileZ)
-// TODO: Performance Imporevements (don't know if this stuff cycles to much)
+type (
+	CommitBody    []Msg
+	GroupedCommit map[string][]string
+	Msg           struct {
+		Conventional string
+		GitStatus    string
+		File         string
+		Extra        string
+	}
+)
 
+// Cache for conventional type lookups
+var (
+	conventionalTypeCache = make(map[string]string)
+	cacheMutex            sync.RWMutex
+)
+
+func (b *CommitBody) toString() string {
+	var bodyString []string
+	bodyString = append(bodyString, "# This is an automated commit message")
+	bodyString = append(bodyString, "")
+
+	// Group similar messages together
+	grouped := b.groupMessages()
+	for key, files := range grouped {
+		bodyString = append(bodyString, fmt.Sprintf("# %s %s", key, strings.Join(files, ", ")))
+	}
+
+	bodyString = append(bodyString, "")
+	bodyString = append(bodyString, "# This is the Footer of the automated commit message")
+	return strings.Join(bodyString, "\n")
+}
+
+func (b *CommitBody) groupMessages() GroupedCommit {
+	grouped := make(GroupedCommit)
+	for _, msg := range *b {
+		key := fmt.Sprintf("%s: %s", msg.Conventional, msg.GitStatus)
+		grouped[key] = append(grouped[key], msg.File)
+	}
+	return grouped
+}
+
+func (m *Msg) toString() string {
+	return fmt.Sprintf("# %s: %s %s %s", m.Conventional, m.GitStatus, m.File, m.Extra)
+}
+
+// getConventionalType with caching
 func getConventionalType(filename string) string {
-	if commitType, exists := filetypes.NameMapping[filename]; exists {
+	lowerFilename := strings.ToLower(filename)
+
+	// Check cache first
+	cacheMutex.RLock()
+	if commitType, exists := conventionalTypeCache[lowerFilename]; exists {
+		cacheMutex.RUnlock()
+		return commitType
+	}
+	cacheMutex.RUnlock()
+
+	var commitType string
+
+	// Exact filename match
+	if commitType, exists := filetypes.NameMapping[lowerFilename]; exists {
+		cacheMutex.Lock()
+		conventionalTypeCache[lowerFilename] = commitType
+		cacheMutex.Unlock()
 		return commitType
 	}
 
-	for pattern, commitType := range filetypes.NameMapping {
+	// Directory wildcard match
+	for pattern, cType := range filetypes.NameMapping {
 		if strings.HasSuffix(pattern, "/*") {
 			dir := strings.TrimSuffix(pattern, "/*")
-			if strings.HasPrefix(filename, dir+"/") {
-				return commitType
+			if strings.HasPrefix(lowerFilename, dir+"/") {
+				commitType = cType
+				break
 			}
 		}
 	}
 
-	base := filepath.Base(filename)
-	for pattern, commitType := range filetypes.NameMapping {
-		if strings.HasPrefix(pattern, "*") {
-			if match, _ := filepath.Match(pattern, base); match {
-				return commitType
+	// Extension wildcard match if no directory match found
+	if commitType == "" {
+		base := filepath.Base(lowerFilename)
+		for pattern, cType := range filetypes.NameMapping {
+			if strings.HasPrefix(pattern, "*") {
+				if match, _ := filepath.Match(pattern, base); match {
+					commitType = cType
+					break
+				}
 			}
 		}
 	}
 
-	return filetypes.ConventionalUnkown
+	// Default to unknown
+	if commitType == "" {
+		commitType = filetypes.ConventionalUnknown
+	}
+
+	// Store in cache
+	cacheMutex.Lock()
+	conventionalTypeCache[lowerFilename] = commitType
+	cacheMutex.Unlock()
+
+	return commitType
 }
 
 func getNamingOfBranch(branch string) string {
-	if strings.HasPrefix(branch, "feature") {
-		return filetypes.ConventionalFeat
+	if commitType, exists := filetypes.BranchMapping[branch]; exists {
+		return commitType
 	}
-	if strings.HasPrefix(branch, "bugfix") {
-		return filetypes.ConventionalFix
-	}
-	if strings.HasPrefix(branch, "release") {
-		return filetypes.ConventionalChore
-	}
-	if strings.HasPrefix(branch, "hotfix") {
-		return filetypes.ConventionalFix
-	}
-	if strings.HasPrefix(branch, "support") {
-		return filetypes.ConventionalFix
-	}
-
-	return filetypes.ConventionalUnkown
+	return filetypes.ConventionalUnknown
 }
 
-func dissectGitStatus(repo *git.Repository) string {
-	head, _ := repo.Head()
-	var messages []string
-	status := getGitStatus(repo)
-	for file, statusEntry := range status {
-		commitType := getConventionalType(strings.ToLower(file))
-		if commitType == filetypes.ConventionalUnkown {
-			commitType = getNamingOfBranch(head.Name().Short())
-		}
-		var message string
-
-		switch statusEntry.Staging {
-		case git.Modified:
-			message = fmt.Sprintf("%s: modified %s", commitType, file)
-		case git.Added:
-			message = fmt.Sprintf("%s: added %s", commitType, file)
-		case git.Deleted:
-			message = fmt.Sprintf("%s: deleted %s", commitType, file)
-		case git.Renamed:
-			message = fmt.Sprintf("%s: renamed %s", commitType, file)
-		case git.Copied:
-			message = fmt.Sprintf("%s: copied %s", commitType, file)
-		default:
-			continue
-		}
-		message = "# " + message
-		messages = append(messages, message)
+func getGitStatusText(gs git.StatusCode) string {
+	switch gs {
+	case git.Modified:
+		return "modified"
+	case git.Added:
+		return "added"
+	case git.Deleted:
+		return "deleted"
+	case git.Renamed:
+		return "renamed"
+	case git.Copied:
+		return "copied"
+	default:
+		return ""
 	}
-
-	return strings.Join(messages, "\n")
 }
 
-func getGitStatus(repo *git.Repository) git.Status {
+func determineGitStatus(repo *git.Repository) CommitBody {
+	// Get all Git info in one block to reduce redundant operations
 	wt, err := repo.Worktree()
 	if err != nil {
 		log.Fatalf("Failed to get worktree: %v", err)
@@ -104,7 +153,40 @@ func getGitStatus(repo *git.Repository) git.Status {
 		log.Fatalf("Failed to get status from worktree: %v", err)
 	}
 
-	return status
+	head, err := repo.Head()
+	if err != nil {
+		log.Fatalf("Failed to get HEAD: %v", err)
+	}
+
+	branchName := head.Name().Short()
+	branchType := getNamingOfBranch(branchName)
+
+	var messages []Msg
+	for file, statusEntry := range status {
+		// Skip if no staging status
+		if statusEntry.Staging == git.Untracked {
+			continue
+		}
+
+		gitStatusText := getGitStatusText(statusEntry.Staging)
+		if gitStatusText == "" {
+			continue
+		}
+
+		var message Msg
+		message.File = file
+		message.GitStatus = gitStatusText
+
+		// Get conventional type with caching
+		message.Conventional = getConventionalType(file)
+		if message.Conventional == filetypes.ConventionalUnknown {
+			message.Conventional = branchType
+		}
+
+		messages = append(messages, message)
+	}
+
+	return messages
 }
 
 func main() {
@@ -119,11 +201,9 @@ func main() {
 		log.Fatalf("Not a git repository: %v", err)
 	}
 
-	statusString := dissectGitStatus(repo)
+	statusString := determineGitStatus(repo)
 
-	fmt.Println(statusString)
-
-	err = os.WriteFile(commitMsgFile, []byte(statusString), 0o644)
+	err = os.WriteFile(commitMsgFile, []byte(statusString.toString()), 0o644)
 	if err != nil {
 		log.Fatalf("Error writing to commit message file: %v", err)
 	}

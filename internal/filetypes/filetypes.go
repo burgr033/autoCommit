@@ -1,5 +1,13 @@
 package filetypes
 
+var BranchMapping = map[string]string{
+	"feature": ConventionalFeat,
+	"bugfix":  ConventionalFix,
+	"release": ConventionalChore,
+	"hotfix":  ConventionalFix,
+	"support": ConventionalFix,
+}
+
 var NameMapping = map[string]string{
 	"requirements.txt":              ConventionalBuildDeps,
 	"requirements-dev.txt":          ConventionalBuildDeps,
@@ -132,5 +140,5 @@ const (
 	ConventionalTest      = "test"
 	ConventionalFix       = "fix"
 	ConventionalFeat      = "feat"
-	ConventionalUnkown    = "unkown"
+	ConventionalUnknown   = "unknown"
 )
