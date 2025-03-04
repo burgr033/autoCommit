@@ -124,8 +124,8 @@ func getConventionalType(filename string) string {
 }
 
 func getNamingOfBranch(branch string) string {
-	branchSplit := strings.Split(branch, "/")
 	fmt.Println(branch)
+	branchSplit := strings.Split(branch, "/")
 	if len(branchSplit) > 0 {
 		if commitType, exists := filetypes.BranchMapping[branchSplit[0]]; exists {
 			return commitType
@@ -216,7 +216,7 @@ func main() {
 
 	repo, err := git.PlainOpen(".")
 	if err != nil {
-		log.Fatalf("Not a git repository: %v", err)
+		log.Fatalf("Not in a git repository: %v", err)
 	}
 
 	statusString := determineGitStatus(repo)
