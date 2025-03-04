@@ -12,6 +12,7 @@ import (
 	git "github.com/go-git/go-git/v5"
 )
 
+// custom FOOTER and HEADER command line flags
 var (
 	HEADER = "# This is an automated commit message"
 	FOOTER = "# This is the Footer of the automated commit message"
@@ -124,6 +125,7 @@ func getConventionalType(filename string) string {
 
 func getNamingOfBranch(branch string) string {
 	branchSplit := strings.Split(branch, "/")
+	fmt.Println(branch)
 	if len(branchSplit) > 0 {
 		if commitType, exists := filetypes.BranchMapping[branchSplit[0]]; exists {
 			return commitType
