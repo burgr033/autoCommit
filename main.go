@@ -123,8 +123,8 @@ func getConventionalType(filename string) string {
 	return commitType
 }
 
+// test
 func getNamingOfBranch(branch string) string {
-	fmt.Println(branch)
 	branchSplit := strings.Split(branch, "/")
 	if len(branchSplit) > 0 {
 		if commitType, exists := filetypes.BranchMapping[branchSplit[0]]; exists {
@@ -206,11 +206,10 @@ func main() {
 
 	commitMsgFile := os.Args[1]
 
-	if len(os.Args) >= 3 && os.Args[2] != "" {
+	if len(os.Args) >= 3 {
 		HEADER = os.Args[2]
 	}
-
-	if len(os.Args) >= 4 && os.Args[3] != "" {
+	if len(os.Args) >= 4 {
 		FOOTER = os.Args[3]
 	}
 
