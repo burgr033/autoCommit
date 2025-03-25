@@ -7,4 +7,5 @@
 go.work
 
 # Added by goreleaser init:
+github_token
 dist/
