@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -15,8 +16,8 @@ import (
 
 // custom FOOTER and HEADER command line flags
 var (
-	HEADER = "# This is an automated commit message"
-	FOOTER = "# This is the Footer of the automated commit message"
+	HEADER = ""
+	FOOTER = ""
 )
 
 type (
@@ -38,17 +39,18 @@ var (
 
 func (b *CommitBody) toString() string {
 	var bodyString []string
-	bodyString = append(bodyString, HEADER)
-	bodyString = append(bodyString, "")
-
-	// Group similar messages together
+	if HEADER != "" {
+		bodyString = append(bodyString, HEADER)
+		bodyString = append(bodyString, "#")
+	}
 	grouped := b.groupMessages()
 	for key, files := range grouped {
 		bodyString = append(bodyString, fmt.Sprintf("# %s %s", key, strings.Join(files, ", ")))
 	}
-
-	bodyString = append(bodyString, "")
-	bodyString = append(bodyString, FOOTER)
+	if FOOTER != "" {
+		bodyString = append(bodyString, "#")
+		bodyString = append(bodyString, FOOTER)
+	}
 	return strings.Join(bodyString, "\n")
 }
 
@@ -61,15 +63,9 @@ func (b *CommitBody) groupMessages() GroupedCommit {
 	return grouped
 }
 
-func (m *Msg) toString() string {
-	return fmt.Sprintf("# %s: %s %s %s", m.Conventional, m.GitStatus, m.File, m.Extra)
-}
-
-// getConventionalType with caching
 func getConventionalType(filename string) string {
 	lowerFilename := strings.ToLower(filename)
 
-	// Check cache first
 	cacheMutex.RLock()
 	if commitType, exists := conventionalTypeCache[lowerFilename]; exists {
 		cacheMutex.RUnlock()
@@ -79,7 +75,6 @@ func getConventionalType(filename string) string {
 
 	var commitType string
 
-	// Exact filename match
 	if commitType, exists := filetypes.NameMapping[lowerFilename]; exists {
 		cacheMutex.Lock()
 		conventionalTypeCache[lowerFilename] = commitType
@@ -87,7 +82,6 @@ func getConventionalType(filename string) string {
 		return commitType
 	}
 
-	// Directory wildcard match
 	for pattern, cType := range filetypes.NameMapping {
 		if strings.HasSuffix(pattern, "/*") {
 			dir := strings.TrimSuffix(pattern, "/*")
@@ -98,7 +92,6 @@ func getConventionalType(filename string) string {
 		}
 	}
 
-	// Extension wildcard match if no directory match found
 	if commitType == "" {
 		base := filepath.Base(lowerFilename)
 		for pattern, cType := range filetypes.NameMapping {
@@ -111,12 +104,10 @@ func getConventionalType(filename string) string {
 		}
 	}
 
-	// Default to unknown
 	if commitType == "" {
 		commitType = filetypes.ConventionalUnknown
 	}
 
-	// Store in cache
 	cacheMutex.Lock()
 	conventionalTypeCache[lowerFilename] = commitType
 	cacheMutex.Unlock()
@@ -152,7 +143,6 @@ func getGitStatusText(gs git.StatusCode) string {
 }
 
 func determineGitStatus(repo *git.Repository) CommitBody {
-	// Get all Git info in one block to reduce redundant operations
 	wt, err := repo.Worktree()
 	if err != nil {
 		log.Fatalf("Failed to get worktree: %v", err)
@@ -172,7 +162,7 @@ func determineGitStatus(repo *git.Repository) CommitBody {
 
 	var messages []Msg
 	for file, statusEntry := range status {
-		// Skip if no staging status
+
 		if statusEntry.Staging == git.Untracked {
 			continue
 		}
@@ -186,7 +176,6 @@ func determineGitStatus(repo *git.Repository) CommitBody {
 		message.File = file
 		message.GitStatus = gitStatusText
 
-		// Get conventional type with caching
 		message.Conventional = getConventionalType(file)
 		if message.Conventional == filetypes.ConventionalUnknown {
 			message.Conventional = branchType
@@ -194,22 +183,21 @@ func determineGitStatus(repo *git.Repository) CommitBody {
 
 		messages = append(messages, message)
 	}
-
 	return messages
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("Usage: %s <commit-msg-file> [--header;--footer]", os.Args[0])
-	}
+	var commitMsgFile string
+	var toStdout bool
+	flag.StringVar(&commitMsgFile, "msgfile", "", "name of the commit message file")
+	flag.StringVar(&HEADER, "header", "", "custom header of the commit message")
+	flag.StringVar(&FOOTER, "footer", "", "custom footer of the commit message")
+	flag.BoolVar(&toStdout, "stdout", false, "write to stdout and don't overwrite a file.")
+	flag.Parse()
 
-	commitMsgFile := os.Args[1]
-
-	if len(os.Args) >= 3 {
-		HEADER = os.Args[2]
-	}
-	if len(os.Args) >= 4 {
-		FOOTER = os.Args[3]
+	if commitMsgFile == "" {
+		log.Printf("Parameter -msgfile is missing. Defaulting to stdout\n\n")
+		toStdout = true
 	}
 
 	repo, err := git.PlainOpen(".")
@@ -218,6 +206,11 @@ func main() {
 	}
 
 	statusString := determineGitStatus(repo)
+
+	if toStdout {
+		fmt.Printf("%s", statusString.toString())
+		return
+	}
 
 	err = os.WriteFile(commitMsgFile, []byte(statusString.toString()), 0o644)
 	if err != nil {
