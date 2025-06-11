@@ -187,17 +187,28 @@ func determineGitStatus(repo *git.Repository) CommitBody {
 }
 
 func main() {
-	var commitMsgFile string
 	var toStdout bool
-	flag.StringVar(&commitMsgFile, "msgfile", "", "name of the commit message file")
-	flag.StringVar(&HEADER, "header", "", "custom header of the commit message")
-	flag.StringVar(&FOOTER, "footer", "", "custom footer of the commit message")
+
 	flag.BoolVar(&toStdout, "stdout", false, "write to stdout and don't overwrite a file.")
 	flag.Parse()
 
-	if commitMsgFile == "" {
-		log.Printf("Parameter -msgfile is missing. Defaulting to stdout\n\n")
+	args := flag.Args()
+
+	var commitMsgFile, HEADER, FOOTER string
+
+	if len(args) >= 1 {
+		commitMsgFile = args[0]
+	} else {
+		log.Printf("Commit message file not provided. Defaulting to stdout.\n\n")
 		toStdout = true
+	}
+
+	if len(args) >= 2 {
+		HEADER = args[1]
+	}
+
+	if len(args) >= 3 {
+		FOOTER = args[2]
 	}
 
 	repo, err := git.PlainOpen(".")
@@ -207,12 +218,15 @@ func main() {
 
 	statusString := determineGitStatus(repo)
 
+	// If HEADER or FOOTER is used, prepend/append them to the message
+	message := fmt.Sprintf("%s\n%s\n%s", HEADER, statusString.toString(), FOOTER)
+
 	if toStdout {
-		fmt.Printf("%s", statusString.toString())
+		fmt.Printf("%s", message)
 		return
 	}
 
-	err = os.WriteFile(commitMsgFile, []byte(statusString.toString()), 0o644)
+	err = os.WriteFile(commitMsgFile, []byte(message), 0o644)
 	if err != nil {
 		log.Fatalf("Error writing to commit message file: %v", err)
 	}
