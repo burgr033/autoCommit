@@ -51,3 +51,5 @@ release:
     ---
 
     Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
+env_files:
+  github_token: ~/.config/goreleaser/github_token
