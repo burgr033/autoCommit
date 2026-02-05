@@ -46,6 +46,9 @@ build:
 run: build
   ./{{BINARY_NAME}}
 
+release:
+  goreleaser
+
 # help message
 help:
   @just -l
