@@ -8,3 +8,8 @@ go.work
 autoCommit
 # Added by goreleaser init:
 dist/
+
+coverage*
+
+# test commit files
+*.txt

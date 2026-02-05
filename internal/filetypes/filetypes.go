@@ -10,6 +10,7 @@ var BranchMapping = map[string]string{
 
 var NameMapping = map[string]string{
 	"requirements.txt":              ConventionalBuildDeps,
+	"justfile":                      ConventionalBuild,
 	"requirements-dev.txt":          ConventionalBuildDeps,
 	"dev-requirements.txt":          ConventionalBuildDeps,
 	"requirements-test.txt":         ConventionalBuildDeps,
