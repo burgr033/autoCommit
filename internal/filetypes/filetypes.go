@@ -11,6 +11,8 @@ var BranchMapping = map[string]string{
 var NameMapping = map[string]string{
 	"requirements.txt":              ConventionalBuildDeps,
 	"justfile":                      ConventionalBuild,
+	".goreleaser.yaml":              ConventionalBuild,
+	".goreleaser.yml":               ConventionalBuild,
 	"requirements-dev.txt":          ConventionalBuildDeps,
 	"dev-requirements.txt":          ConventionalBuildDeps,
 	"requirements-test.txt":         ConventionalBuildDeps,
