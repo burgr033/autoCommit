@@ -5,9 +5,9 @@
 *.test
 *.out
 go.work
-autoCommit
 # Added by goreleaser init:
 dist/
+autoCommit
 
 coverage*
 
