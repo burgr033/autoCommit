@@ -1,3 +1,4 @@
+// Deprecated: use codeberg.org/burgr/autoCommit instead.
 module github.com/burgr033/autoCommit
 
 go 1.24.0
